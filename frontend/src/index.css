@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  body {
+    @apply bg-night-50 text-night-900 antialiased;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-xl border border-white/60 shadow-card rounded-2xl;
+  }
+  .input-base {
+    @apply w-full rounded-xl border border-night-200 bg-white px-4 py-3 text-sm
+      placeholder:text-night-400 focus:border-primary-400 focus:outline-none
+      focus:ring-4 focus:ring-primary-100 transition;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500
+      px-5 py-3 text-sm font-semibold text-white shadow-glow transition
+      hover:bg-primary-600 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-night-200
+      bg-white px-5 py-3 text-sm font-semibold text-night-700 transition
+      hover:border-night-300 hover:bg-night-50 active:scale-[0.98] disabled:opacity-50;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-red-500
+      px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600
+      active:scale-[0.98] disabled:opacity-50;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .card {
+    @apply rounded-2xl border border-night-100 bg-white shadow-card;
+  }
+}
+
+/* Leaflet marker pulse */
+.ridego-pulse {
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+.leaflet-container {
+  font-family: inherit;
+  z-index: 0;
+}
