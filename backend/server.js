@@ -15,6 +15,7 @@ import supportRoutes from "./routes/supportRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import { expireStaleRides } from "./services/rideExpiry.js";
+import { ensureProtectedAccounts, formatProtectedAccountReport } from "./utils/protectedAccounts.js";
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -51,7 +52,18 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
+connectDB().then(async () => {
+  // Create/heal the protected role accounts (one per role) before serving
+  // traffic so a brand-new database is always immediately usable.
+  try {
+    const { created } = await ensureProtectedAccounts();
+    const report = formatProtectedAccountReport(created);
+    if (report) console.log(report);
+    else console.log("[protected-accounts] protected role accounts verified");
+  } catch (err) {
+    console.error("[protected-accounts] failed:", err.message);
+  }
+
   // Watchdog: periodically auto-cancel rides abandoned in a live status (they can
   // get stranded when a server restart wipes the in-memory dispatch timers, or
   // when no nearby driver matches). This keeps passengers from being permanently

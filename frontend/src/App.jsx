@@ -34,6 +34,8 @@ import AdminPayments from "./pages/admin/Payments";
 import AdminPromos from "./pages/admin/Promos";
 import AdminComplaints from "./pages/admin/Complaints";
 import Analytics from "./pages/admin/Analytics";
+import LiveOps from "./pages/admin/LiveOps";
+import AuditLog from "./pages/admin/AuditLog";
 
 import DashboardLayout from "./components/DashboardLayout";
 import {
@@ -49,6 +51,8 @@ import {
   LifeBuoy,
   BarChart3,
   Users,
+  Radar,
+  ScrollText,
 } from "lucide-react";
 
 const passengerNav = [
@@ -73,6 +77,8 @@ const adminNav = [
   { to: "/admin/payments", label: "Payments", icon: CircleDollarSign },
   { to: "/admin/promos", label: "Promos", icon: TicketPercent },
   { to: "/admin/complaints", label: "Complaints", icon: LifeBuoy },
+  { to: "/admin/live", label: "Live map", icon: Radar },
+  { to: "/admin/audit", label: "Audit log", icon: ScrollText },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
@@ -148,6 +154,8 @@ export default function App() {
                   <Route path="payments" element={<AdminPayments />} />
                   <Route path="promos" element={<AdminPromos />} />
                   <Route path="complaints" element={<AdminComplaints />} />
+                  <Route path="live" element={<LiveOps />} />
+                  <Route path="audit" element={<AuditLog />} />
                   <Route path="analytics" element={<Analytics />} />
                 </Route>
 

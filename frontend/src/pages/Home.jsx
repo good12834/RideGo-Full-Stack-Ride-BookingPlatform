@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap,
   ShieldCheck,
@@ -128,6 +128,42 @@ const TESTIMONIALS = [
   },
 ];
 
+const HERO_SHOWCASE = [
+  {
+    id: "economy",
+    img: "/images/hero_ai_mobility.jpg",
+    name: "RideGo Economy",
+    tag: "Everyday Essential",
+    eta: "3.2 min",
+    fare: "$12.40",
+    seats: "4 Seats",
+    accent: "from-primary-500 to-amber-400",
+    chipColor: "text-amber-300",
+  },
+  {
+    id: "comfort",
+    img: "/images/ai_smart_experience.jpg",
+    name: "RideGo Comfort",
+    tag: "Most Popular",
+    eta: "4.1 min",
+    fare: "$16.80",
+    seats: "4 Seats",
+    accent: "from-indigo-500 to-primary-500",
+    chipColor: "text-indigo-300",
+  },
+  {
+    id: "xl",
+    img: "/images/driver_partner_hero.jpg",
+    name: "RideGo XL & Electric",
+    tag: "Groups & Zero-Emission",
+    eta: "5.4 min",
+    fare: "$21.50",
+    seats: "6 Seats",
+    accent: "from-emerald-500 to-teal-500",
+    chipColor: "text-emerald-300",
+  },
+];
+
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -135,6 +171,24 @@ export default function Home() {
   const [destination, setDestination] = useState(DEMO_PLACES[1]);
   const [selectedFleet, setSelectedFleet] = useState("comfort");
   const [error, setError] = useState("");
+
+  // Hero rotating fleet showcase
+  const [showcaseIdx, setShowcaseIdx] = useState(1);
+  const [paused, setPaused] = useState(false);
+  const activeCar = HERO_SHOWCASE[showcaseIdx];
+
+  useEffect(() => {
+    if (paused) return;
+    const t = setInterval(() => {
+      setShowcaseIdx((i) => (i + 1) % HERO_SHOWCASE.length);
+    }, 3800);
+    return () => clearInterval(t);
+  }, [paused]);
+
+  // keep the quick-book fleet selector in sync with the visible car
+  useEffect(() => {
+    setSelectedFleet(activeCar.id);
+  }, [activeCar.id]);
 
   // Driver Earnings Slider State
   const [hoursPerWeek, setHoursPerWeek] = useState(30);
@@ -174,10 +228,10 @@ export default function Home() {
       {/* 1. Hero Section */}
       <section className="relative min-h-[92vh] bg-gradient-to-b from-primary-50/70 via-white to-night-50/50 pt-10 pb-20">
         {/* Background glow accents */}
-        <div className="pointer-events-none absolute -right-36 -top-36 h-[500px] w-[500px] rounded-full bg-gradient-to-br from-primary-200/50 to-amber-200/30 blur-3xl" />
+        <div className="pointer-events-none absolute -right-36 -top-36 h-[500px] w-[600px] rounded-full bg-gradient-to-br from-primary-200/50 to-amber-200/30 blur-3xl" />
         <div className="pointer-events-none absolute -left-36 top-1/3 h-[450px] w-[450px] rounded-full bg-gradient-to-tr from-indigo-200/30 to-primary-100/40 blur-3xl" />
 
-        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:items-stretch lg:min-h-[calc(92vh-7.5rem)]">
           {/* Left Column: Heading & Quick Book Card */}
           <div className="flex flex-col justify-center">
             <motion.div
@@ -279,31 +333,45 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right Column: Hero Visual with Holographic Stats */}
+          {/* Right Column: Rotating Fleet Showcase */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="relative flex items-center justify-center"
+            className="relative flex h-full items-stretch justify-center"
+            onMouseEnter={() => setPaused(true)}
+            onMouseLeave={() => setPaused(false)}
           >
-            <div className="relative w-full overflow-hidden rounded-3xl border border-white/60 bg-night-950 shadow-2xl">
-              {/* Generated Hero Asset */}
-              <img
-                src="/images/hero_ai_mobility.jpg"
-                alt="RideGo AI Autonomous Mobility"
-                className="h-[460px] w-full object-cover object-center transition-transform duration-700 hover:scale-105"
-              />
+            <div className="relative h-[600px] w-full overflow-hidden rounded-3xl border border-white/60 bg-night-950 shadow-2xl lg:h-full">
+              {/* Crossfading vehicle imagery */}
+              <AnimatePresence mode="sync">
+                <motion.img
+                  key={activeCar.id}
+                  src={activeCar.img}
+                  alt={activeCar.name}
+                  initial={{ opacity: 0, scale: 1.08 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.02 }}
+                  transition={{ opacity: { duration: 1.1, ease: "easeInOut" }, scale: { duration: 4.6, ease: "linear" } }}
+                  className="absolute inset-0 h-full w-full object-cover object-center"
+                />
+              </AnimatePresence>
 
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-night-950/80 via-transparent to-transparent pointer-events-none" />
+              {/* Gradient overlays */}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-night-950/90 via-night-950/10 to-night-950/40" />
+              <AnimatePresence mode="sync">
+                <motion.div
+                  key={`glow-${activeCar.id}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.25 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 1.1 }}
+                  className={`pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-gradient-to-tr ${activeCar.accent} blur-3xl`}
+                />
+              </AnimatePresence>
 
-              {/* Floating Glassmorphic Status Chips */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4 }}
-                className="absolute top-5 left-5 rounded-2xl border border-white/30 bg-black/50 p-3 text-white backdrop-blur-xl shadow-lg"
-              >
+              {/* Top-left: AI dispatch chip */}
+              <div className="absolute left-5 top-5 rounded-2xl border border-white/30 bg-black/50 p-3 text-white shadow-lg backdrop-blur-xl">
                 <div className="flex items-center gap-2">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-500 text-white shadow-glow">
                     <Sparkles className="h-4 w-4" />
@@ -313,14 +381,10 @@ export default function Home() {
                     <p className="text-xs font-black">Matched in 18s</p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-                className="absolute top-5 right-5 rounded-2xl border border-white/30 bg-black/50 p-3 text-white backdrop-blur-xl shadow-lg"
-              >
+              {/* Top-right: Stripe chip */}
+              <div className="absolute right-5 top-5 rounded-2xl border border-white/30 bg-black/50 p-3 text-white shadow-lg backdrop-blur-xl">
                 <div className="flex items-center gap-2">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-glow">
                     <Lock className="h-4 w-4" />
@@ -330,29 +394,77 @@ export default function Home() {
                     <p className="text-xs font-black">256-bit Encrypted</p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="absolute bottom-5 left-5 right-5 rounded-2xl border border-white/30 bg-black/60 p-4 text-white backdrop-blur-xl"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-500 to-amber-400 text-white shadow-glow">
-                      <Zap className="h-5 w-5" />
+              {/* Middle-right: fading vehicle spec card */}
+              <div className="absolute right-5 top-1/2 -translate-y-1/2">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`spec-${activeCar.id}`}
+                    initial={{ opacity: 0, x: 24 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -16 }}
+                    transition={{ duration: 0.55, ease: "easeOut" }}
+                    className="w-44 rounded-2xl border border-white/25 bg-black/55 p-4 text-white shadow-xl backdrop-blur-xl"
+                  >
+                    <span className={`text-[10px] font-extrabold uppercase tracking-wider ${activeCar.chipColor}`}>
+                      {activeCar.tag}
                     </span>
-                    <div>
-                      <p className="text-sm font-extrabold">Autonomous Fleet Telemetry</p>
-                      <p className="text-xs text-night-300">42 verified drivers active in your area</p>
+                    <p className="mt-1 text-sm font-black leading-tight">{activeCar.name}</p>
+                    <div className="mt-3 space-y-1.5 border-t border-white/15 pt-2.5 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-night-300">Upfront fare</span>
+                        <span className="font-bold">{activeCar.fare}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-night-300">Pickup ETA</span>
+                        <span className="font-bold">{activeCar.eta}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-night-300">Capacity</span>
+                        <span className="font-bold">{activeCar.seats}</span>
+                      </div>
                     </div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+
+              {/* Bottom: telemetry bar + rotation controls */}
+              <div className="absolute bottom-5 left-5 right-5 space-y-3">
+                <div className="rounded-2xl border border-white/30 bg-black/60 p-4 text-white backdrop-blur-xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr ${activeCar.accent} text-white shadow-glow`}>
+                        <Zap className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-extrabold">Autonomous Fleet Telemetry</p>
+                        <p className="text-xs text-night-300">42 verified drivers active in your area</p>
+                      </div>
+                    </div>
+                    <span className="badge border border-emerald-400/30 bg-emerald-500/20 text-emerald-300">
+                      Live
+                    </span>
                   </div>
-                  <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                    Live
-                  </span>
                 </div>
-              </motion.div>
+
+                {/* Showcase selector dots */}
+                <div className="flex items-center justify-center gap-2">
+                  {HERO_SHOWCASE.map((car, i) => (
+                    <button
+                      key={car.id}
+                      type="button"
+                      aria-label={`Show ${car.name}`}
+                      onClick={() => setShowcaseIdx(i)}
+                      className={`h-1.5 rounded-full transition-all duration-500 ${
+                        i === showcaseIdx
+                          ? "w-10 bg-primary-400 shadow-glow"
+                          : "w-4 bg-white/40 hover:bg-white/70"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>

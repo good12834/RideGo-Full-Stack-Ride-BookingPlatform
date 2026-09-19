@@ -56,7 +56,7 @@ export default function Footer() {
               <span className="text-lg font-extrabold tracking-tight text-white">
                 Ride<span className="text-primary-400">Go</span>
                 <span className="ml-1.5 rounded-md bg-primary-500/20 px-1.5 py-0.5 text-[10px] font-bold text-primary-300">
-                  AI v2.0
+                  AI v2.0 • Gemini 2.5
                 </span>
               </span>
             </Link>

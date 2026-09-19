@@ -23,6 +23,7 @@ import { useSocket } from "../../hooks/useSocket";
 import { useToast } from "../../components/Toast";
 import { formatMoney } from "../../components/RideCard";
 import DriverPendingDashboard from "../../components/DriverPendingDashboard";
+import HotspotMap from "../../components/HotspotMap";
 import api from "../../services/api";
 
 export default function DriverDashboard() {
@@ -225,22 +226,8 @@ export default function DriverDashboard() {
             </span>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {hotspots.slice(0, 3).map((hz) => (
-              <div key={hz.zone} className="rounded-xl bg-white/5 p-3 border border-white/10 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-white truncate">{hz.zone}</span>
-                    <span className="font-black text-xs text-amber-400">{hz.demandMultiplier}x</span>
-                  </div>
-                  <p className="text-[11px] text-night-400 mt-1">{hz.surgeReason}</p>
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[10px] text-night-400 border-t border-white/5 pt-1.5">
-                  <span>{hz.activeRiders} riders searching</span>
-                  <span className="text-emerald-400 font-bold">~{hz.estWaitMin}m pickup</span>
-                </div>
-              </div>
-            ))}
+          <div className="mt-4">
+            <HotspotMap hotspots={hotspots} />
           </div>
         </div>
       )}

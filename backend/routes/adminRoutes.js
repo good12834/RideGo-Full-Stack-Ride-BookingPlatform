@@ -17,6 +17,8 @@ import {
   listTickets,
   updateTicket,
   getAnalytics,
+  listAuditLogs,
+  getLiveOps,
 } from "../controllers/adminController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { adminOnly } from "../middleware/adminMiddleware.js";
@@ -42,5 +44,7 @@ router.delete("/promos/:id", deletePromo);
 router.get("/tickets", listTickets);
 router.put("/tickets/:id", updateTicket);
 router.get("/analytics", getAnalytics);
+router.get("/logs", listAuditLogs);
+router.get("/live", getLiveOps);
 
 export default router;

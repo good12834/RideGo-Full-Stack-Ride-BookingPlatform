@@ -17,6 +17,13 @@ async function log(adminId, action, targetType = "", targetId = null, meta = {})
   }
 }
 
+// Protected role accounts are system-owned: admin actions may never disable them.
+async function isProtectedDriverUser(userId) {
+  if (!userId) return false;
+  const owner = await User.findById(userId).select("isProtected").lean();
+  return Boolean(owner?.isProtected);
+}
+
 // GET /api/admin/stats
 export async function getStats(req, res) {
   const [users, drivers, rides, revenueAgg, openTickets, pendingDrivers] = await Promise.all([
@@ -66,6 +73,9 @@ export async function blockUser(req, res) {
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found" });
   if (user.role === "admin") return res.status(403).json({ message: "Cannot block an admin" });
+  if (user.isProtected) {
+    return res.status(403).json({ message: "This is a protected role account and cannot be blocked" });
+  }
 
   user.isBlocked = !user.isBlocked;
   await user.save();
@@ -79,7 +89,7 @@ export async function listDrivers(req, res) {
   if (req.query.status) filter.status = req.query.status;
 
   const drivers = await Driver.find(filter)
-    .populate("userId", "name email phone avatar isBlocked createdAt")
+    .populate("userId", "name email phone avatar isBlocked isProtected createdAt")
     .sort({ createdAt: -1 })
     .limit(200)
     .lean();
@@ -116,6 +126,9 @@ export async function approveDriver(req, res) {
 export async function rejectDriver(req, res) {
   const driver = await Driver.findById(req.params.id);
   if (!driver) return res.status(404).json({ message: "Driver not found" });
+  if (await isProtectedDriverUser(driver.userId)) {
+    return res.status(403).json({ message: "This is the protected driver account and cannot be rejected" });
+  }
 
   driver.status = "REJECTED";
   driver.isApproved = false;
@@ -132,6 +145,9 @@ export async function rejectDriver(req, res) {
 export async function suspendDriver(req, res) {
   const driver = await Driver.findById(req.params.id);
   if (!driver) return res.status(404).json({ message: "Driver not found" });
+  if (await isProtectedDriverUser(driver.userId)) {
+    return res.status(403).json({ message: "This is the protected driver account and cannot be suspended" });
+  }
 
   driver.status = "SUSPENDED";
   driver.isOnline = false;
@@ -204,6 +220,62 @@ export async function listPayments(req, res) {
     Payment.countDocuments({}),
   ]);
   res.json({ payments, total, page, pages: Math.ceil(total / limit) });
+}
+
+// GET /api/admin/logs?action=&search=&page= — audit log viewer
+export async function listAuditLogs(req, res) {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, parseInt(req.query.limit) || 25);
+  const filter = {};
+
+  if (req.query.action) filter.action = req.query.action;
+  if (req.query.targetType) filter.targetType = req.query.targetType;
+  if (req.query.search) {
+    const rx = new RegExp(String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ action: rx }, { targetType: rx }];
+  }
+
+  const [logs, total, actionTypes] = await Promise.all([
+    AdminLog.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate("adminId", "name email")
+      .lean(),
+    AdminLog.countDocuments(filter),
+    AdminLog.distinct("action"),
+  ]);
+
+  res.json({ logs, total, page, pages: Math.ceil(total / limit), actionTypes: actionTypes.sort() });
+}
+
+// GET /api/admin/live — live ops snapshot: active rides + online drivers
+export async function getLiveOps(req, res) {
+  const ACTIVE = ["REQUESTED", "SEARCHING_DRIVER", "DRIVER_ASSIGNED", "DRIVER_ARRIVING", "DRIVER_ARRIVED", "TRIP_STARTED"];
+
+  const [rides, drivers] = await Promise.all([
+    Ride.find({ status: { $in: ACTIVE } })
+      .select("rideNumber status fare pickup destination createdAt")
+      .populate("passengerId", "name")
+      .populate({ path: "driverId", select: "currentLocation", populate: { path: "userId", select: "name" } })
+      .lean(),
+    Driver.find({ isOnline: true, status: "APPROVED" })
+      .select("isOnline rating currentLocation totalEarnings")
+      .populate("userId", "name")
+      .lean(),
+  ]);
+
+  res.json({
+    rides,
+    drivers: drivers.map((d) => ({
+      _id: d._id,
+      name: d.userId?.name || "Driver",
+      rating: d.rating,
+      isOnline: d.isOnline,
+      location: d.currentLocation,
+    })),
+    updatedAt: new Date(),
+  });
 }
 
 // GET /api/admin/promos

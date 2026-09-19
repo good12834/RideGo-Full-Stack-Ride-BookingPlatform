@@ -27,6 +27,9 @@ const userSchema = new mongoose.Schema(
       },
     ],
     isBlocked: { type: Boolean, default: false },
+    // System-owned role accounts (see utils/protectedAccounts.js). They can never
+    // be blocked, suspended or re-roled from the admin console.
+    isProtected: { type: Boolean, default: false },
     lastLoginAt: { type: Date },
   },
   { timestamps: true }

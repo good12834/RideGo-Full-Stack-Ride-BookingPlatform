@@ -12,7 +12,6 @@ export function initSocket(httpServer, corsOrigin) {
   io = new Server(httpServer, {
     cors: { origin: corsOrigin, credentials: true },
   });
-
   io.use((socket, next) => {
     try {
       const token = socket.handshake.auth?.token;

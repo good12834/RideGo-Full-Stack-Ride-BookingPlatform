@@ -27,6 +27,16 @@ const QUICK_PROMPTS = [
   { label: "💳 Stripe Protection", text: "Explain how payments are secured via Stripe" },
 ];
 
+/** "gemini-2.5-flash" -> "Gemini 2.5 Flash" for display badges. */
+function prettyModel(model) {
+  if (!model) return "";
+  return model
+    .replace(/^models\//, "")
+    .split("-")
+    .map((part) => (/^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(" ");
+}
+
 export default function AiCopilot() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -38,7 +48,7 @@ export default function AiCopilot() {
     {
       id: "welcome",
       sender: "ai",
-      text: `👋 Hi${user ? ` ${user.name.split(" ")[0]}` : ""}! I am **RideGo AI Copilot**.\n\nI can help you plan AI-optimized rides, predict traffic & dynamic fares, explain our **Stripe bank-grade payment protection**, and book rides instantly!`,
+      text: `👋 Hi${user ? ` ${user.name.split(" ")[0]}` : ""}! I am **RideGo AI Copilot v2.0**, powered by **Gemini 2.5**.\n\nI can help you plan AI-optimized rides, predict traffic & dynamic fares, explain our **Stripe bank-grade payment protection**, and book rides instantly!`,
       suggestions: ["Book ride to Airport", "How does Stripe protect me?", "Show active promos"],
     },
   ]);
@@ -76,6 +86,8 @@ export default function AiCopilot() {
         text: data.reply,
         action: data.action,
         suggestions: data.suggestions,
+        engine: data.engine,
+        aiModel: prettyModel(data.aiModel),
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
@@ -146,10 +158,13 @@ export default function AiCopilot() {
                     <span className="rounded-md bg-primary-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary-300">
                       v2.0
                     </span>
+                    <span className="rounded-md bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                      Gemini 2.5
+                    </span>
                   </h3>
                   <p className="flex items-center gap-1 text-[11px] text-emerald-400">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Neural Engine Active
+                    Gemini 2.5 Neural Engine Active
                   </p>
                 </div>
               </div>

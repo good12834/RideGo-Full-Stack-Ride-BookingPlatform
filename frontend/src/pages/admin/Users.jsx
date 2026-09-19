@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Ban, ShieldCheck } from "lucide-react";
+import { Search, Ban, ShieldCheck, Lock } from "lucide-react";
 import Spinner from "../../components/Spinner";
 import { formatDate } from "../../components/RideCard";
 import { useToast } from "../../components/Toast";
@@ -98,7 +98,16 @@ export default function Users() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 capitalize">{u.role}</td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="capitalize">{u.role}</span>
+                      {u.isProtected && (
+                        <span className="badge bg-primary-100 text-primary-700" title="Protected role account — cannot be blocked or re-roled">
+                          <Lock className="mr-1 h-3 w-3" /> Protected
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-5 py-3.5 text-night-500">{u.phone || "—"}</td>
                   <td className="px-5 py-3.5 text-night-500">{formatDate(u.createdAt)}</td>
                   <td className="px-5 py-3.5">
@@ -109,7 +118,7 @@ export default function Users() {
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {u.role !== "admin" && (
+                    {u.role !== "admin" && !u.isProtected && (
                       <button
                         onClick={() => toggleBlock(u)}
                         className={`btn-ghost !px-3 !py-1.5 text-xs ${u.isBlocked ? "!text-emerald-600" : "!text-red-500"}`}

@@ -1,6 +1,6 @@
 import { estimateFare, routeDistanceKm, estimateDurationMin, VEHICLE_TYPES } from "../utils/fareCalculator.js";
 import PromoCode from "../models/PromoCode.js";
-import { generateGeminiText, isGeminiEnabled, geminiStatus } from "./geminiService.js";
+import { generateGeminiText, isGeminiEnabled, geminiStatus, AUX_MODEL_CHAIN } from "./geminiService.js";
 
 // Predefined city landmarks for NLP location parsing
 const KNOWN_LOCATIONS = [
@@ -15,7 +15,6 @@ const KNOWN_LOCATIONS = [
   { name: "Times Square Broadway", aliases: ["times square", "broadway", "theater district"], latitude: 40.758896, longitude: -73.98513 },
   { name: "Central Park South", aliases: ["central park", "park", "central park south"], latitude: 40.7663, longitude: -73.9774 },
 ];
-
 function findLocationInText(text) {
   const lower = text.toLowerCase();
   for (const loc of KNOWN_LOCATIONS) {
@@ -97,6 +96,7 @@ export async function runLocalCopilot({ message, history = [], context = {}, use
       }
 
       return {
+        topic: "booking",
         reply: `I've planned your AI-optimized route from **${pickup.address}** to **${destination.address}**!\n\n` +
           `• **Estimated Distance:** ${quote.distanceKm} km (~${quote.durationMin} mins)\n` +
           `• **Vehicle:** ${VEHICLE_TYPES[rideType]?.label || "Economy"}\n` +
@@ -122,9 +122,28 @@ export async function runLocalCopilot({ message, history = [], context = {}, use
     }
   }
 
+  // 1b. Live-data guard — the local engine cannot see real-time driver counts,
+  // live surge or current traffic. Answer that honestly instead of letting the
+  // keyword matcher hijack the question with an unrelated marketing reply
+  // (e.g. "how many drivers are free right now?" used to return the driver pitch).
+  const asksLiveData =
+    !isBookingQuery &&
+    (/\b(right now|currently|live|real[- ]?time|at this moment|near me|around me)\b/.test(msgLower) ||
+      (/\bhow many\b/.test(msgLower) && /\b(driver|car|taxi|vehicle|ride)s?\b/.test(msgLower)));
+
+  if (asksLiveData) {
+    return {
+      topic: "live",
+      reply: `📡 **I can't read live data** — real-time driver availability, current surge pricing and live traffic aren't exposed to me.\n\n` +
+        `Open the booking screen: the live map shows nearby drivers, accurate ETAs and the exact fare for your route right now.`,
+      suggestions: ["Book a ride now", "How does AI dynamic pricing work?", "Show active promos"],
+    };
+  }
+
   // 2. Safety Inquiries
   if (msgLower.includes("safe") || msgLower.includes("security") || msgLower.includes("sos") || msgLower.includes("emergency") || msgLower.includes("pin")) {
     return {
+      topic: "safety",
       reply: `🛡️ **RideGo AI Multi-Layer Safety Guardian** is active on every ride:\n\n` +
         `1. **4-Digit Ride PIN:** Never get into the wrong vehicle. The driver cannot start the trip until you share your unique PIN.\n` +
         `2. **Neural Route Anomaly Sentinel:** Live telemetry monitors route adherence, unexpected stops, and sudden speed anomalies.\n` +
@@ -137,6 +156,7 @@ export async function runLocalCopilot({ message, history = [], context = {}, use
   // 3. Payment & Stripe Protection Inquiries
   if (msgLower.includes("stripe") || msgLower.includes("pay") || msgLower.includes("card") || msgLower.includes("wallet") || msgLower.includes("protect") || msgLower.includes("charge")) {
     return {
+      topic: "payment",
       reply: `💳 **Bank-Grade Stripe Payment Protection:**\n\n` +
         `• **PCI-DSS Level 1 Compliant:** Raw credit card data never touches our servers. Everything is encrypted end-to-end through Stripe Elements.\n` +
         `• **Server-Enforced Fare Verification:** Fares are recalculated on our backend to prevent any client-side tampering.\n` +
@@ -149,6 +169,7 @@ export async function runLocalCopilot({ message, history = [], context = {}, use
   // 4. Driver & Earnings Inquiries
   if (msgLower.includes("driver") || msgLower.includes("earn") || msgLower.includes("commission") || msgLower.includes("drive with") || msgLower.includes("salary")) {
     return {
+      topic: "driver",
       reply: `🚗 **Drive with RideGo — Industry-Leading 90% Payout:**\n\n` +
         `• **Keep 90% of Every Fare:** Platform fee is only 10% (industry lowest).\n` +
         `• **AI Demand Hotspots:** Our predictive dispatch directs you to high-surge zones before passengers even request.\n` +
@@ -161,6 +182,7 @@ export async function runLocalCopilot({ message, history = [], context = {}, use
   // 5. Promo Code Inquiries
   if (msgLower.includes("promo") || msgLower.includes("discount") || msgLower.includes("coupon") || msgLower.includes("offer") || msgLower.includes("deal")) {
     return {
+      topic: "promo",
       reply: `🎉 **Current Active AI Promotions:**\n\n` +
         `• **RIDE20** — 20% off your next ride (Max $10)\n` +
         `• **WELCOME10** — $10 flat off your first booking\n` +
@@ -172,6 +194,7 @@ export async function runLocalCopilot({ message, history = [], context = {}, use
 
   // 6. General Intelligent Fallback
   return {
+    topic: "general",
     reply: `Hello${user ? ` ${user.name.split(" ")[0]}` : ""}! I am your **RideGo AI Copilot** 🤖.\n\n` +
       `Here is how I can assist you today:\n` +
       `• **Smart Ride Planning:** Say *"Take me from Downtown to Airport in Comfort"*.\n` +
@@ -188,6 +211,29 @@ export async function runLocalCopilot({ message, history = [], context = {}, use
 }
 
 /**
+ * Shared instruction added to every Copilot prompt: the model finishes with a
+ * machine-readable follow-up line that we turn into clickable suggestion pills.
+ */
+const SUGGESTIONS_RULE =
+  " Then finish with one final line in EXACTLY this format: " +
+  "SUGGESTIONS: option one | option two | option three — 2-5 words each, written as short questions or commands " +
+  "the user could ask next, tailored to what they just asked. Never add anything after that line.";
+
+/**
+ * Shown when every Gemini model in the chain is unavailable AND the local engine
+ * has no genuine answer (general questions). Better an honest retry prompt than
+ * a keyword-matched canned reply that does not answer what was asked.
+ */
+const ENGINE_BUSY_REPLY =
+  "⚠️ **Gemini 2.5 is briefly rate-limited**, so I couldn't pull a real answer for that one just now.\n\n" +
+  "Give it a few seconds and ask me again — booking, fares and payments keep working normally in the meantime.";
+const BUSY_SUGGESTIONS = ["Book a ride now", "How does AI dynamic pricing work?", "Show active promos"];
+
+/** Appended when a platform-topic answer comes from the built-in knowledge base. */
+const LOCAL_FALLBACK_NOTE =
+  "\n\n_⚠️ Gemini 2.5 was busy for a moment — this answer came from RideGo's built-in knowledge base._";
+
+/**
  * Intelligent AI Copilot & NLP intent parser (Gemini Neural Engine).
  * Runs the deterministic engine first (for reliable booking actions), then —
  * when the Gemini API key is configured — uses Gemini to write a natural,
@@ -200,16 +246,36 @@ export async function handleAiCopilot({ message, history = [], context = {}, use
   if (!localResult) return localResult;
   if (!isGeminiEnabled()) return { ...localResult, engine: "neural" };
 
-  const systemInstruction =
-    "You are the RideGo AI Copilot — a warm, sharp ride-booking assistant for the RideGo " +
-    "ride-hailing platform. You answer in short, friendly markdown (2-6 short lines). " +
-    "You ONLY use data from the 'Local engine draft' and chat history supplied below. " +
-    "Never invent promo codes, prices, features, facts, or live data that is not in the draft. " +
-    "If the user wants to book a ride, keep the draft's route, distance, duration and fare " +
-    "exactly as provided and invite them to confirm with the booking card.";
+  // Booking cards carry REAL engine-computed data (route, distance, fare) that
+  // drives the interactive booking UI — those numbers must stay exact.
+  // For everything else, Gemini answers the user's actual question with its
+  // real knowledge instead of paraphrasing the canned local draft.
+  const hasBookingCard = localResult.action?.type === "RIDE_QUOTE";
+
+  const systemInstruction = hasBookingCard
+    ? "You are the RideGo AI Copilot v2.0, powered by Google Gemini 2.5, for the RideGo ride-hailing platform. " +
+      "The booking data supplied below (route, distance, duration, vehicle, fare, promo) was calculated by the REAL " +
+      "RideGo pricing engine — present those numbers EXACTLY as provided, never alter, round or invent any figure, " +
+      "and invite the user to confirm the ride with the booking card. " +
+      "Reply in short, friendly markdown (2-6 short lines)." + SUGGESTIONS_RULE
+    : "You are the RideGo AI Copilot v2.0, powered by Google Gemini 2.5 — a real, knowledgeable assistant for the " +
+      "RideGo ride-hailing platform. ALWAYS answer the user's actual question with your genuine knowledge. Do NOT " +
+      "simply rephrase the 'localDraft' — treat it as optional platform context and use it only if it is genuinely " +
+      "relevant to what the user asked. If the question is unrelated to RideGo or rides, just answer it normally " +
+      "with your real knowledge. " +
+      "Verified RideGo platform facts you may use when relevant: fares are estimated in USD before booking; vehicle " +
+      "classes are Economy, Comfort and XL; drivers keep 90% of every fare (10% platform fee); every ride is protected " +
+      "by a 4-digit pickup PIN, live route-anomaly monitoring and one-touch emergency SOS; payments run through Stripe " +
+      "(PCI-DSS Level 1) with an optional in-app wallet; common promo codes are RIDE20 (20% off, max $10), WELCOME10 " +
+      "($10 off a first ride) and AIRPORT50 ($5 off airport rides). " +
+      "Never fabricate live data (real-time traffic, live driver counts, current weather, exact arrival times) — " +
+      "for anything live, direct the user to the booking screen. " +
+      "Reply in short, friendly markdown (2-6 short lines). " +
+      "You ARE the copilot — never call yourself a language model and never mention 'the draft'." +
+      SUGGESTIONS_RULE;
 
   try {
-    const geminiReply = await generateGeminiText({
+    const gemini = await generateGeminiText({
       systemInstruction,
       message,
       history: history || [],
@@ -221,20 +287,46 @@ export async function handleAiCopilot({ message, history = [], context = {}, use
         fare: localResult.action?.fare,
         user: userName(user),
       },
+      temperature: hasBookingCard ? 0.4 : 0.8,
     });
 
-    const cleaned = stripImitatedAssistantPrefix(geminiReply || "");
+    const parsed = splitSuggestions(gemini?.text || "");
+    const cleaned = stripImitatedAssistantPrefix(parsed.reply);
     if (cleaned) {
       return {
         ...localResult,
         reply: cleaned,
-        suggestions: localResult.suggestions || [],
+        // Booking cards keep their purpose-built chips; every other answer uses
+        // the follow-up options Gemini tailored to the user's actual question.
+        suggestions: hasBookingCard
+          ? localResult.suggestions || []
+          : parsed.suggestions.length
+            ? parsed.suggestions
+            : localResult.suggestions || [],
         engine: "gemini",
-        aiModel: geminiStatus().model,
+        aiModel: gemini?.model || geminiStatus().model,
       };
     }
   } catch (err) {
-    console.error("[ai/gemini] Copilot enrichment failed — using Neural NLP engine:", err.message);
+    console.error("[ai/gemini] Copilot enrichment failed — using the built-in Neural engine:", err.message);
+
+    // The keyword engine has no real answer for general questions, so never fake
+    // one: tell the user Gemini was briefly unavailable so they can retry.
+    if (!hasBookingCard && localResult.topic === "general") {
+      return {
+        ...localResult,
+        reply: ENGINE_BUSY_REPLY,
+        suggestions: BUSY_SUGGESTIONS,
+        engine: "neural",
+        aiModel: null,
+      };
+    }
+
+    // On-topic platform answers are still accurate — serve them, but label their
+    // real source instead of implying Gemini wrote them.
+    if (!hasBookingCard) {
+      return { ...localResult, reply: `${localResult.reply}${LOCAL_FALLBACK_NOTE}`, engine: "neural", aiModel: null };
+    }
   }
 
   return { ...localResult, engine: "neural" };
@@ -247,6 +339,23 @@ function userName(user) {
 /** Strips accidental "Assistant:" / "RideGo AI:" prefixes from model output. */
 function stripImitatedAssistantPrefix(text) {
   return text.replace(/^(Assistant|RideGo AI Copilot|RideGo AI):\s*/i, "").trim();
+}
+
+/**
+ * Splits the trailing "SUGGESTIONS: a | b | c" line off the model reply so it
+ * becomes clickable follow-up pills instead of visible chat text.
+ */
+function splitSuggestions(text) {
+  const match = text.match(/^[ \t]*SUGGESTIONS:[ \t]*(.+)$/im);
+  if (!match) return { reply: text.trim(), suggestions: [] };
+
+  const suggestions = match[1]
+    .split("|")
+    .map((part) => part.trim().replace(/^[-•*.\d)\s]+/, "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+
+  return { reply: text.replace(match[0], "").trim(), suggestions };
 }
 
 /**
@@ -330,10 +439,12 @@ export async function predictFareAndTraffic({ pickup, destination, rideType = "e
         systemInstruction:
           "You are RideGo's AI traffic & pricing forecaster. In 2-3 concise sentences advise the rider based ONLY on the JSON forecast data. Mention the best departure window and never invent numbers.",
         message: `Forecast data: ${forecastSummary}\n\nGive the rider brief departure advice.`,
+        // Auxiliary traffic on its own model bucket — keeps the Copilot's quota free.
+        models: AUX_MODEL_CHAIN,
       });
-      if (insight) result.aiInsights = insight;
+      if (insight?.text) result.aiInsights = insight.text;
       result.engine = "gemini";
-      result.aiModel = geminiStatus().model;
+      result.aiModel = insight?.model || geminiStatus().model;
     } catch (err) {
       console.error("[ai/gemini] Fare insights unavailable — falling back to Neural engine:", err.message);
       result.engine = "neural";
@@ -386,10 +497,11 @@ export async function performSafetyScan({ rideId, currentLat, currentLng, pickup
         systemInstruction:
           "You are RideGo's AI Safety Sentinel. In 1-2 concise sentences summarize the safety assessment using ONLY the scan JSON. Reassure the passenger and flag any anomaly that needs attention.",
         message: `Telemetry scan: ${scanSummary}\n\nProvide a brief rider-facing safety summary.`,
+        models: AUX_MODEL_CHAIN,
       });
-      if (analysis) result.aiKbAnalysis = analysis;
+      if (analysis?.text) result.aiKbAnalysis = analysis.text;
       result.engine = "gemini";
-      result.aiModel = geminiStatus().model;
+      result.aiModel = analysis?.model || geminiStatus().model;
     } catch (err) {
       console.error("[ai/gemini] Safety analysis unavailable — falling back to Neural engine:", err.message);
       result.engine = "neural";
@@ -429,10 +541,11 @@ export async function getDriverHotspots() {
         systemInstruction:
           "You are RideGo's AI dispatch strategist for drivers. In 1-2 concise sentences tell a driver where to position next using ONLY the hotspot data and recommend exactly one zone.",
         message: `Hotspot data: ${zoneSummary}\n\nWhere should the driver go next?`,
+        models: AUX_MODEL_CHAIN,
       });
-      if (advice) result.aiAdvice = advice;
+      if (advice?.text) result.aiAdvice = advice.text;
       result.engine = "gemini";
-      result.aiModel = geminiStatus().model;
+      result.aiModel = advice?.model || geminiStatus().model;
     } catch (err) {
       console.error("[ai/gemini] Hotspot advice unavailable — falling back to Neural engine:", err.message);
       result.engine = "neural";

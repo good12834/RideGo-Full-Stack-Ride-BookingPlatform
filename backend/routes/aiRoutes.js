@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
 const router = Router();
-
 // Optional user extractor middleware
 async function optionalUser(req, res, next) {
   try {

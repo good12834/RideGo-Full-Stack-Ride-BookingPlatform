@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, X, Pause, CarFront, Star } from "lucide-react";
+import { Check, X, Pause, CarFront, Star, Lock } from "lucide-react";
 import Spinner from "../../components/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import { useToast } from "../../components/Toast";
@@ -92,6 +92,11 @@ export default function Drivers() {
                 <span>{d.totalTrips} trips</span>
                 <span>License: {d.licenseNumber}</span>
                 {d.userId?.isBlocked && <span className="badge bg-red-100 text-red-700">User blocked</span>}
+                {d.userId?.isProtected && (
+                  <span className="badge bg-primary-100 text-primary-700">
+                    <Lock className="mr-1 h-3 w-3" /> Protected
+                  </span>
+                )}
               </div>
 
               {d.vehicles?.length > 0 && (
@@ -110,20 +115,28 @@ export default function Drivers() {
               )}
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {d.status !== "APPROVED" && (
-                  <button className="btn-primary !py-2 text-xs" onClick={() => act(d, "approve")}>
-                    <Check className="h-3.5 w-3.5" /> Approve
-                  </button>
-                )}
-                {d.status === "PENDING" && (
-                  <button className="btn-ghost !py-2 text-xs !text-red-500" onClick={() => rejectWithReason(d)}>
-                    <X className="h-3.5 w-3.5" /> Reject
-                  </button>
-                )}
-                {d.status === "APPROVED" && (
-                  <button className="btn-ghost !py-2 text-xs !text-amber-600" onClick={() => act(d, "suspend")}>
-                    <Pause className="h-3.5 w-3.5" /> Suspend
-                  </button>
+                {d.userId?.isProtected ? (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-night-400">
+                    <Lock className="h-3.5 w-3.5" /> Protected role account — approval state is managed by the system.
+                  </p>
+                ) : (
+                  <>
+                    {d.status !== "APPROVED" && (
+                      <button className="btn-primary !py-2 text-xs" onClick={() => act(d, "approve")}>
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </button>
+                    )}
+                    {d.status === "PENDING" && (
+                      <button className="btn-ghost !py-2 text-xs !text-red-500" onClick={() => rejectWithReason(d)}>
+                        <X className="h-3.5 w-3.5" /> Reject
+                      </button>
+                    )}
+                    {d.status === "APPROVED" && (
+                      <button className="btn-ghost !py-2 text-xs !text-amber-600" onClick={() => act(d, "suspend")}>
+                        <Pause className="h-3.5 w-3.5" /> Suspend
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

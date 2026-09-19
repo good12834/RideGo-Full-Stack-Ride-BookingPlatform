@@ -10,8 +10,22 @@ import Rating from "./models/Rating.js";
 import PromoCode from "./models/PromoCode.js";
 import SupportTicket from "./models/SupportTicket.js";
 import { estimateFare, routeDistanceKm, estimateDurationMin } from "./utils/fareCalculator.js";
+import crypto from "node:crypto";
+import {
+  ensureProtectedAccounts,
+  formatProtectedAccountReport,
+  getProtectedAccounts,
+  protectedAccountFor,
+} from "./utils/protectedAccounts.js";
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ridego";
+
+// Sample fleet/ops users are pure fixture data — they get unique random
+// passwords that are never printed or documented, so the seeder publishes no
+// shared "demo" logins. Only the three protected role accounts are sign-in-able.
+function samplePassword() {
+  return crypto.randomBytes(18).toString("base64url");
+}
 
 const LOCATIONS = {
   downtown: { address: "Downtown Central Station", latitude: 40.758, longitude: -73.9855 },
@@ -46,34 +60,51 @@ async function seed() {
     SupportTicket.deleteMany({}),
   ]);
 
-  // Admin
-  await User.create({
-    name: "Admin Riley",
-    email: "admin@ridego.dev",
-    password: "admin123",
-    phone: "+1 555 0100",
-    role: "admin",
-    walletBalance: 0,
-  });
+  // ---------------------------------------------------------------------------
+  // Protected operator accounts — admin + driver only, with unique credentials
+  // read from backend/.env (see utils/protectedAccounts.js). Passengers are never
+  // seeded: every passenger creates their own account via /register.
+  // ---------------------------------------------------------------------------
+  const { created: createdProtected } = await ensureProtectedAccounts();
 
-  // Passenger
+  // Fixture passenger that owns the seeded ride history/ratings. Like the fleet
+  // drivers below it gets a random, unpublished password so it is not a usable
+  // login — it exists purely so analytics and admin tables have data.
   const passenger = await User.create({
-    name: "Alex Morgan",
-    email: "alex@ridego.dev",
-    password: "alex123",
+    name: "Sample Rider",
+    email: "rider.fixture@ridego.dev",
+    password: samplePassword(),
     phone: "+1 555 0101",
     role: "passenger",
     walletBalance: 60,
     trustedContacts: [{ name: "Sam Morgan", phone: "+1 555 0199" }],
   });
 
-  // Drivers
-  const driverIds = [];
+  // Drivers — the protected driver first (so it is always dispatchable), then
+  // sample fleet fixtures with unguessable random passwords.
+  const driverDef = protectedAccountFor("driver");
+  const protectedDriverUser = await User.findOne({ email: driverDef.email });
+  const protectedDriver = await Driver.findOne({ userId: protectedDriverUser._id });
+  protectedDriver.isOnline = true;
+  protectedDriver.currentLocation = { latitude: 40.758, longitude: -73.9855, updatedAt: new Date() };
+  await protectedDriver.save();
+  await Vehicle.create({
+    driverId: protectedDriver._id,
+    make: "Toyota",
+    model: "Prius",
+    year: 2023,
+    color: "Silver",
+    plateNumber: "PRT-001",
+    vehicleType: "economy",
+    isDefault: true,
+  });
+
+  const driverIds = [{ driver: protectedDriver, user: protectedDriverUser }];
   for (const seedDef of DRIVER_SEEDS) {
     const user = await User.create({
       name: seedDef.name,
       email: seedDef.email,
-      password: "driver123",
+      password: samplePassword(),
       phone: "+1 555 02" + String(driverIds.length).padStart(2, "0"),
       role: "driver",
     });
@@ -110,7 +141,7 @@ async function seed() {
   const pendingUser = await User.create({
     name: "Noah Pending",
     email: "noah@ridego.dev",
-    password: "driver123",
+    password: samplePassword(),
     phone: "+1 555 0299",
     role: "driver",
   });
@@ -246,15 +277,20 @@ async function seed() {
   };
 
   console.log("[seed] done:", counts);
-  console.log(`
-Demo accounts:
-  Admin      admin@ridego.dev   / admin123
-  Passenger  alex@ridego.dev    / alex123
-  Driver     michael@ridego.dev / driver123
-  Driver     david@ridego.dev   / driver123
 
-Promo codes: RIDE20 (20% off), WELCOME5 ($5 off)
-`);
+  console.log("\nProtected operator accounts (admin + driver, immutable):");
+  const generated = formatProtectedAccountReport(createdProtected);
+  if (generated) console.log(generated);
+  for (const account of getProtectedAccounts()) {
+    const auto = createdProtected.find((c) => c.role === account.role && c.generated);
+    const note = auto ? auto.password : "(password from backend/.env)";
+    console.log(`  ${account.label.padEnd(9)} ${account.email.padEnd(28)} ${note}`);
+  }
+  console.log(
+    "\nPassengers are not seeded — every passenger creates their own account at /register.\n" +
+      "Sample fleet/passenger fixtures use random passwords and are intentionally not sign-in-able.\n" +
+      "Promo codes: RIDE20 (20% off), WELCOME5 ($5 off)\n"
+  );
 
   await mongoose.disconnect();
 }
