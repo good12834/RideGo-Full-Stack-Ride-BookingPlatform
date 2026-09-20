@@ -22,12 +22,15 @@
 - Accept / reject incoming ride requests
 - Active trip flow with ride PIN verification & status transitions
 - Earnings dashboard, ratings view, vehicle management
+- AI demand hotspot heatmap — interactive surge-zone map (Map / List toggle) showing where to position next
 
 ### Admin
 - Overview KPIs & analytics dashboard
 - User, driver, vehicle management (approve / reject / suspend)
 - Ride & payment monitoring, manual ride cancellation
 - Promo code CRUD, support ticket (complaint) management
+- Live ops map — real-time active rides & online drivers on one map (10s auto-refresh)
+- Audit log viewer — searchable, filterable history of every admin action
 
 ### AI & Intelligence
 - **AI Dynamic Dispatch** — algorithmic driver pairing (sub-second matching)
@@ -211,7 +214,7 @@ All endpoints are prefixed with `/api`. Auth-protected endpoints require `Author
 | Payments | `/api/payments` | Stripe config/intents, pay, wallet top-up |
 | Promos | `/api/promos` | validate coupon |
 | Support | `/api/support` | tickets, notifications |
-| Admin | `/api/admin` | stats, users, drivers, rides, payments, promos, tickets, analytics |
+| Admin | `/api/admin` | stats, users, drivers, rides, payments, promos, tickets, analytics, live ops, audit logs |
 | AI | `/api/ai` | copilot, predict-fare, safety-scan, driver-hotspots |
 | Health | `/api/health` | server health check |
 

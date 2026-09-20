@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../components/Toast";
+import { API_URL } from "../services/api";
 import PasswordInput from "../components/PasswordInput";
 
 // How long each hero photo stays on screen (also drives the progress bar + slow zoom)
@@ -126,7 +127,7 @@ export default function Register() {
           fd.append("color", form.vehicleColor || "White");
           fd.append("plateNumber", form.vehiclePlate || `TMP-${Date.now() % 10000}`);
           fd.append("vehicleType", form.vehicleType);
-          await fetch("http://localhost:5000/api/driver/vehicles", {
+          await fetch(`${API_URL}/driver/vehicles`, {
             method: "POST",
             headers: { Authorization: `Bearer ${localStorage.getItem("ridego_token")}` },
             body: fd,
