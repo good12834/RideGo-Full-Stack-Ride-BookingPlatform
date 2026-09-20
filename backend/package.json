@@ -7,6 +7,7 @@
     "dev": "node --watch server.js",
     "dev:memory": "node scripts/devMemory.js",
     "start": "node server.js",
+    "start:memory": "node scripts/devMemory.js",
     "seed": "node seed.js"
   },
   "dependencies": {

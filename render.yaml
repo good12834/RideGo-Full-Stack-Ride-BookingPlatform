@@ -1,0 +1,41 @@
+# RideGo Backend — Render Blueprint
+# Creates a free-tier web service running the RideGo API with the built-in
+# in-memory MongoDB (zero external services; data resets on restart/redeploy).
+#
+# Apply from the Render dashboard: New + → Blueprint → pick this repo.
+# Or with the CLI: `render blueprint launch`
+#
+# Secrets below use `generateValue: true` — Render creates a random value once;
+# view it under the service's Environment tab in the dashboard.
+
+services:
+  - type: web
+    name: ridego-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:memory
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Allows the deployed Vercel frontend (Express CORS + Socket.IO origins).
+      - key: CLIENT_URL
+        value: https://ridego-blush.vercel.app
+      - key: JWT_SECRET
+        generateValue: true
+      # Protected operator accounts (re-provisioned on every boot).
+      - key: PROTECTED_ADMIN_NAME
+        value: RideGo Administrator
+      - key: PROTECTED_ADMIN_EMAIL
+        value: admin@ridego.dev
+      - key: PROTECTED_ADMIN_PASSWORD
+        generateValue: true
+      - key: PROTECTED_DRIVER_NAME
+        value: RideGo Driver
+      - key: PROTECTED_DRIVER_EMAIL
+        value: driver@ridego.dev
+      - key: PROTECTED_DRIVER_PASSWORD
+        generateValue: true

@@ -36,7 +36,10 @@ async function main() {
     console.log(`[memory] MongoDB ready at ${uri}`);
   }
 
-  const child = spawn(process.execPath, ["--watch", "server.js"], {
+  // `--watch` is a dev convenience; in production (e.g. Render) run the plain
+  // server so the process stays stable and doesn't restart on file events.
+  const watch = process.env.NODE_ENV !== "production";
+  const child = spawn(process.execPath, watch ? ["--watch", "server.js"] : ["server.js"], {
     stdio: "inherit",
     env: { ...process.env, MONGO_URI: uri, PORT: String(PORT) },
   });
